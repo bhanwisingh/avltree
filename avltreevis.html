@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AVL Tree Visualizer</title>
+<style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f6f8;
+    color: #333;
+    text-align: center;
+  }
+  h1 { color: #2a6; }
+  .controls {
+    margin: 20px;
+  }
+  input {
+    padding: 8px;
+    width: 80px;
+    font-size: 16px;
+  }
+  button {
+    padding: 8px 16px;
+    margin: 5px;
+    font-size: 16px;
+    background-color: #2a6;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #248;
+  }
+  #tree {
+    margin-top: 30px;
+  }
+  .node {
+    display: inline-block;
+    background-color: #4caf50;
+    color: white;
+    border-radius: 50%;
+    padding: 10px;
+    min-width: 40px;
+    margin: 10px;
+    position: relative;
+  }
+  .node small {
+    display: block;
+    font-size: 10px;
+    color: #fff;
+  }
+  .line {
+    width: 2px;
+    background-color: #333;
+    position: absolute;
+  }
+  .level {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+  <h1>🌳 AVL Tree Visualizer</h1>
+  <div class="controls">
+    <input type="number" id="valueInput" placeholder="Value">
+    <button onclick="insertValue()">Insert</button>
+    <button onclick="deleteValue()">Delete</button>
+    <button onclick="clearTree()">Clear</button>
+  </div>
+  <div id="tree"></div>
+
+<script>
+class Node {
+  constructor(key) {
+    this.key = key;
+    this.left = null;
+    this.right = null;
+    this.height = 1;
+  }
+}
+
+function getHeight(n) { return n ? n.height : 0; }
+function getBalance(n) { return n ? getHeight(n.left) - getHeight(n.right) : 0; }
+function updateHeight(n) { n.height = 1 + Math.max(getHeight(n.left), getHeight(n.right)); }
+
+function rightRotate(y) {
+  let x = y.left;
+  let T2 = x.right;
+  x.right = y;
+  y.left = T2;
+  updateHeight(y);
+  updateHeight(x);
+  return x;
+}
+
+function leftRotate(x) {
+  let y = x.right;
+  let T2 = y.left;
+  y.left = x;
+  x.right = T2;
+  updateHeight(x);
+  updateHeight(y);
+  return y;
+}
+
+function insert(root, key) {
+  if (!root) return new Node(key);
+  if (key < root.key) root.left = insert(root.left, key);
+  else if (key > root.key) root.right = insert(root.right, key);
+  else return root;
+
+  updateHeight(root);
+  let balance = getBalance(root);
+
+  if (balance > 1 && key < root.left.key) return rightRotate(root);
+  if (balance < -1 && key > root.right.key) return leftRotate(root);
+  if (balance > 1 && key > root.left.key) {
+    root.left = leftRotate(root.left);
+    return rightRotate(root);
+  }
+  if (balance < -1 && key < root.right.key) {
+    root.right = rightRotate(root.right);
+    return leftRotate(root);
+  }
+  return root;
+}
+
+function minValueNode(node) {
+  let current = node;
+  while (current.left) current = current.left;
+  return current;
+}
+
+function deleteNode(root, key) {
+  if (!root) return root;
+  if (key < root.key) root.left = deleteNode(root.left, key);
+  else if (key > root.key) root.right = deleteNode(root.right, key);
+  else {
+    if (!root.left || !root.right) {
+      root = root.left ? root.left : root.right;
+    } else {
+      let temp = minValueNode(root.right);
+      root.key = temp.key;
+      root.right = deleteNode(root.right, temp.key);
+    }
+  }
+  if (!root) return root;
+  updateHeight(root);
+  let balance = getBalance(root);
+  if (balance > 1 && getBalance(root.left) >= 0) return rightRotate(root);
+  if (balance > 1 && getBalance(root.left) < 0) {
+    root.left = leftRotate(root.left);
+    return rightRotate(root);
+  }
+  if (balance < -1 && getBalance(root.right) <= 0) return leftRotate(root);
+  if (balance < -1 && getBalance(root.right) > 0) {
+    root.right = rightRotate(root.right);
+    return leftRotate(root);
+  }
+  return root;
+}
+
+function maxDepth(root) {
+  return !root ? 0 : 1 + Math.max(maxDepth(root.left), maxDepth(root.right));
+}
+
+// --- Tree Rendering ---
+function renderTree(root) {
+  const container = document.getElementById('tree');
+  container.innerHTML = '';
+  if (!root) {
+    container.innerHTML = "<p>(empty tree)</p>";
+    return;
+  }
+  const levels = [];
+  const queue = [{ node: root, level: 0 }];
+  while (queue.length) {
+    const { node, level } = queue.shift();
+    if (!levels[level]) levels[level] = [];
+    levels[level].push(node);
+    if (node) {
+      queue.push({ node: node.left, level: level + 1 });
+      queue.push({ node: node.right, level: level + 1 });
+    }
+  }
+  levels.forEach(levelNodes => {
+    const levelDiv = document.createElement('div');
+    levelDiv.className = 'level';
+    levelNodes.forEach(n => {
+      if (n) {
+        const div = document.createElement('div');
+        div.className = 'node';
+        div.innerHTML = `${n.key}<small>h=${n.height} bf=${getBalance(n)}</small>`;
+        levelDiv.appendChild(div);
+      } else {
+        const empty = document.createElement('div');
+        empty.style.minWidth = "60px";
+        levelDiv.appendChild(empty);
+      }
+    });
+    container.appendChild(levelDiv);
+  });
+}
+
+// --- Controls ---
+let root = null;
+
+function insertValue() {
+  const val = parseInt(document.getElementById('valueInput').value);
+  if (isNaN(val)) return alert("Enter a valid number!");
+  root = insert(root, val);
+  renderTree(root);
+}
+
+function deleteValue() {
+  const val = parseInt(document.getElementById('valueInput').value);
+  if (isNaN(val)) return alert("Enter a valid number!");
+  root = deleteNode(root, val);
+  renderTree(root);
+}
+
+function clearTree() {
+  root = null;
+  renderTree(root);
+}
+
+// Initial empty render
+renderTree(root);
+</script>
+</body>
+</html>
