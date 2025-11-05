@@ -3,18 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AVL Tree Visualizer</title>
+<title>Animated AVL Tree Visualizer</title>
 <style>
   body {
     font-family: 'Segoe UI', sans-serif;
     background: #f4f6f8;
     color: #333;
     text-align: center;
+    overflow-x: hidden;
   }
   h1 { color: #2a6; }
-  .controls {
-    margin: 20px;
-  }
+  .controls { margin: 20px; }
   input {
     padding: 8px;
     width: 80px;
@@ -30,50 +29,76 @@
     border-radius: 5px;
     cursor: pointer;
   }
-  button:hover {
-    background-color: #248;
-  }
-  #tree {
+  button:hover { background-color: #248; }
+
+  #treeContainer {
+    position: relative;
+    display: inline-block;
     margin-top: 30px;
   }
-  .node {
+  #lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  #tree {
+    position: relative;
     display: inline-block;
+    transition: all 0.5s ease;
+  }
+
+  .node {
+    position: absolute;
     background-color: #4caf50;
     color: white;
     border-radius: 50%;
-    padding: 10px;
-    min-width: 40px;
-    margin: 10px;
-    position: relative;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    transition: all 0.5s ease;
+    transform: scale(0);
+    opacity: 0;
   }
   .node small {
-    display: block;
-    font-size: 10px;
-    color: #fff;
-  }
-  .line {
-    width: 2px;
-    background-color: #333;
     position: absolute;
+    bottom: -18px;
+    font-size: 10px;
+    color: #333;
+    font-weight: normal;
   }
-  .level {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+  .show {
+    transform: scale(1);
+    opacity: 1;
+  }
+  .highlight {
+    background-color: #ff9800 !important;
+    box-shadow: 0 0 20px #ffa726;
   }
 </style>
 </head>
 <body>
-  <h1>🌳 AVL Tree Visualizer</h1>
+  <h1>🌳 Animated AVL Tree Visualizer</h1>
   <div class="controls">
     <input type="number" id="valueInput" placeholder="Value">
     <button onclick="insertValue()">Insert</button>
     <button onclick="deleteValue()">Delete</button>
+    <button onclick="searchValue()">Search</button>
     <button onclick="clearTree()">Clear</button>
   </div>
-  <div id="tree"></div>
+
+  <div id="treeContainer">
+    <svg id="lines"></svg>
+    <div id="tree"></div>
+  </div>
 
 <script>
+/* ------------------ AVL NODE ------------------ */
 class Node {
   constructor(key) {
     this.key = key;
@@ -83,6 +108,7 @@ class Node {
   }
 }
 
+/* ------------------ AVL FUNCTIONS ------------------ */
 function getHeight(n) { return n ? n.height : 0; }
 function getBalance(n) { return n ? getHeight(n.left) - getHeight(n.right) : 0; }
 function updateHeight(n) { n.height = 1 + Math.max(getHeight(n.left), getHeight(n.right)); }
@@ -164,60 +190,102 @@ function deleteNode(root, key) {
   return root;
 }
 
-function maxDepth(root) {
-  return !root ? 0 : 1 + Math.max(maxDepth(root.left), maxDepth(root.right));
+function searchNode(root, key) {
+  if (!root) return null;
+  if (root.key === key) return root;
+  else if (key < root.key) return searchNode(root.left, key);
+  else return searchNode(root.right, key);
 }
 
-// --- Tree Rendering ---
+/* ------------------ RENDERING ------------------ */
 function renderTree(root) {
-  const container = document.getElementById('tree');
-  container.innerHTML = '';
+  const treeDiv = document.getElementById("tree");
+  const lineSVG = document.getElementById("lines");
+  treeDiv.innerHTML = "";
+  lineSVG.innerHTML = "";
+
   if (!root) {
-    container.innerHTML = "<p>(empty tree)</p>";
+    treeDiv.innerHTML = "<p>(empty tree)</p>";
     return;
   }
-  const levels = [];
-  const queue = [{ node: root, level: 0 }];
+
+  const positions = {};
+  const levelHeight = 100;
+  const nodeSpacing = 60;
+
+  const queue = [{ node: root, x: 0, y: 0, level: 0 }];
+  let minX = 0, maxX = 0;
+
+  // Calculate coordinates
   while (queue.length) {
-    const { node, level } = queue.shift();
-    if (!levels[level]) levels[level] = [];
-    levels[level].push(node);
-    if (node) {
-      queue.push({ node: node.left, level: level + 1 });
-      queue.push({ node: node.right, level: level + 1 });
+    const { node, x, y, level } = queue.shift();
+    if (!node) continue;
+    positions[node.key] = { x, y, level };
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    queue.push({ node: node.left, x: x - 100 / (level + 1), y: y + levelHeight, level: level + 1 });
+    queue.push({ node: node.right, x: x + 100 / (level + 1), y: y + levelHeight, level: level + 1 });
+  }
+
+  const width = maxX - minX + 200;
+  lineSVG.setAttribute("width", width + "px");
+  treeDiv.style.width = width + "px";
+
+  // Draw nodes
+  for (let key in positions) {
+    const { x, y } = positions[key];
+    const nodeDiv = document.createElement("div");
+    nodeDiv.className = "node";
+    nodeDiv.setAttribute("data-key", key);
+    nodeDiv.innerHTML = `${key}<small></small>`;
+    nodeDiv.style.left = `${x - minX + 50}px`;
+    nodeDiv.style.top = `${y}px`;
+    treeDiv.appendChild(nodeDiv);
+    setTimeout(() => nodeDiv.classList.add("show"), 50);
+  }
+
+  // Draw connecting lines
+  function drawLines(node) {
+    if (!node) return;
+    const from = positions[node.key];
+    if (node.left) {
+      const to = positions[node.left.key];
+      addLine(from, to);
+      drawLines(node.left);
+    }
+    if (node.right) {
+      const to = positions[node.right.key];
+      addLine(from, to);
+      drawLines(node.right);
     }
   }
-  levels.forEach(levelNodes => {
-    const levelDiv = document.createElement('div');
-    levelDiv.className = 'level';
-    levelNodes.forEach(n => {
-      if (n) {
-        const div = document.createElement('div');
-        div.className = 'node';
-        div.innerHTML = `${n.key}<small>h=${n.height} bf=${getBalance(n)}</small>`;
-        levelDiv.appendChild(div);
-      } else {
-        const empty = document.createElement('div');
-        empty.style.minWidth = "60px";
-        levelDiv.appendChild(empty);
-      }
-    });
-    container.appendChild(levelDiv);
-  });
+
+  function addLine(from, to) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", from.x - minX + 75);
+    line.setAttribute("y1", from.y + 25);
+    line.setAttribute("x2", to.x - minX + 75);
+    line.setAttribute("y2", to.y + 25);
+    line.setAttribute("stroke", "#333");
+    line.setAttribute("stroke-width", "2");
+    lineSVG.appendChild(line);
+  }
+
+  drawLines(root);
 }
 
-// --- Controls ---
+/* ------------------ CONTROLS ------------------ */
 let root = null;
 
 function insertValue() {
-  const val = parseInt(document.getElementById('valueInput').value);
+  const val = parseInt(document.getElementById("valueInput").value);
   if (isNaN(val)) return alert("Enter a valid number!");
   root = insert(root, val);
   renderTree(root);
 }
 
 function deleteValue() {
-  const val = parseInt(document.getElementById('valueInput').value);
+  const val = parseInt(document.getElementById("valueInput").value);
   if (isNaN(val)) return alert("Enter a valid number!");
   root = deleteNode(root, val);
   renderTree(root);
@@ -228,7 +296,21 @@ function clearTree() {
   renderTree(root);
 }
 
-// Initial empty render
+function searchValue() {
+  const val = parseInt(document.getElementById("valueInput").value);
+  if (isNaN(val)) return alert("Enter a valid number!");
+  const node = searchNode(root, val);
+  renderTree(root);
+  if (!node) return alert("Value not found!");
+
+  const target = document.querySelector(`[data-key='${val}']`);
+  if (target) {
+    target.classList.add("highlight");
+    setTimeout(() => target.classList.remove("highlight"), 1500);
+  }
+}
+
+// Initial render
 renderTree(root);
 </script>
 </body>
